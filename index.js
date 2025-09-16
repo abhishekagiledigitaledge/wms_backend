@@ -4,8 +4,10 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const dotenv = require("dotenv");
 dotenv.config();
+const { compareOrdersAI } = require("./compareOrders");
 
 const API_KEY = process.env.API_KEY;
+// console.log(API_KEY, "API_KEY");
 
 app.use(express.json());
 
@@ -127,6 +129,22 @@ app.get("/api/shopify-orders", async (req, res) => {
       error.response?.data || error.message
     );
     res.status(500).json({ error: "Failed to fetch Shopify orders" });
+  }
+});
+
+app.post("/api/compare-orders", async (req, res) => {
+  const { internalOrders, externalOrders } = req.body;
+
+  if (!internalOrders || !externalOrders) {
+    return res.status(400).json({ error: "Missing data in request body." });
+  }
+
+  try {
+    const comparison = await compareOrdersAI(internalOrders, externalOrders);
+    res.json({ comparison });
+  } catch (error) {
+    console.error("Comparison error:", error.message);
+    res.status(500).json({ error: "Failed to compare orders." });
   }
 });
 

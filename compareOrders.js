@@ -1,7 +1,15 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { CohereClient } = require("cohere-ai");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY); // 🔑 Use your Gemini API key
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Free tier model
+const cohere = new CohereClient({
+  token: process.env.COHERE_API_KEY,
+});
+
+// Function to extract first JSON array/object from text
+function extractJSON(text) {
+  const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+  if (!jsonMatch) throw new Error("No JSON found in AI response");
+  return JSON.parse(jsonMatch[0]);
+}
 
 async function compareOrdersAI(internalOrders, externalOrders) {
   const prompt = `
@@ -39,20 +47,19 @@ If an order has no differences, include:
 `;
 
   try {
-    const response = await model.generateContent(prompt);
+    const response = await cohere.chat({
+      model: "command-a-03-2025",
+      message: prompt,
+    });
 
-    const rawText = response.response.text();
-    console.log("Raw Gemini Response:", rawText);
+    const rawText = response.text;
+    // console.log("Raw Cohere Response:", rawText);
 
-    // Remove code block markers if present
-    const cleanedText = rawText.replace(/```json|```/g, "").trim();
-
-    // Parse JSON safely
-    const parsed = JSON.parse(cleanedText);
+    const parsed = extractJSON(rawText); // <-- safe extraction
 
     return parsed;
   } catch (err) {
-    console.error("Gemini AI error:", err);
+    console.error("Cohere AI error:", err);
     throw err;
   }
 }

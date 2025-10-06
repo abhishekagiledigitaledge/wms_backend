@@ -6,7 +6,7 @@ import {
   getOrderDetails,
   getShopifyOrderDetails,
   getCentralizedOrders,
-} from "../controllers/ordercontroller.js";
+} from "../controllers/orderController.js";
 
 const router = express.Router();
 

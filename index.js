@@ -29,6 +29,14 @@ app.use("/api/outlets", outletsRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
 
+app.get("/new-health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    uptime: process.uptime(),
+    timestamp: new Date(),
+  });
+});
+
 // Endpoints to trigger order sync
 app.get("/sync/rex", async (req, res) => {
   try {

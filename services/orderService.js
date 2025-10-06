@@ -1,9 +1,8 @@
 // services/orderService.js
 import axios from "axios";
 import { mapRexOrder, mapShopifyOrder } from "../helpers/orderMapper.js";
-import prisma from "../prismaClient.js";
-
 import dotenv from "dotenv";
+import prisma from "../prismaClient.js";
 dotenv.config();
 
 // Replace with your REX & Shopify API credentials
@@ -54,7 +53,6 @@ export const fetchAndSaveRexOrders = async (req, res) => {
         break;
       }
 
-      const totalRecords = response.data.total_records || 0;
       console.log(`Total records: ${totalRecords}`);
       if (page * limit >= totalRecords) break; // fetched all pages
 

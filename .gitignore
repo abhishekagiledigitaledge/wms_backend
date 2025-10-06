@@ -53,3 +53,5 @@ debug.log
 # PM2 logs and configs
 .pids/
 *.log
+
+/generated/prisma

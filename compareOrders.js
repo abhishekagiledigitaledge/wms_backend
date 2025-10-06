@@ -1,4 +1,4 @@
-const { CohereClient } = require("cohere-ai");
+import { CohereClient } from "cohere-ai";
 
 const cohere = new CohereClient({
   token: process.env.COHERE_API_KEY,
@@ -11,40 +11,53 @@ function extractJSON(text) {
   return JSON.parse(jsonMatch[0]);
 }
 
-async function compareOrdersAI(internalOrders, externalOrders) {
+export const compareOrdersAI = async (internalOrders, externalOrders) => {
   const prompt = `
-You are an assistant comparing retail orders from two systems.
+You are a strict JSON-only assistant. Compare two sets of order data: INTERNAL (our system) and EXTERNAL (MYOB).
 
-Internal Orders:
+Your goal: find and return ONLY the fields where the values are different between the two datasets.
+
+Ignore any order_number or ID fields — they are static and should NOT be used for matching. Just compare field-by-field values between the first internal and the first external record.
+
+Compare these exact columns:
+- paymentStatus
+- fulfillmentStatus
+- total (number)
+- customerEmail
+- billingAddress.address1
+- billingAddress.city
+- billingAddress.province
+- billingAddress.country
+- billingAddress.phone
+- line_data.count (number of line items)
+- line_data.total (sum of line item prices)
+
+Return ONLY a single JSON object in the following format:
+{
+  "issue": <true|false>,            // true if any field differs
+  "differences": {                  // include only fields that differ (omit identical fields)
+     "<field_path>": { "internal": <value>, "external": <value> },
+     ...
+  }
+}
+
+Field path examples: "paymentStatus", "billingAddress.city", "line_data.total"
+
+If there are NO differences at all, return:
+{
+  "issue": false,
+  "message": "No differences"
+}
+
+Now compare field values between:
+
+INTERNAL ORDER DATA:
 ${JSON.stringify(internalOrders, null, 2)}
 
-External Orders:
+EXTERNAL (MYOB) ORDER DATA:
 ${JSON.stringify(externalOrders, null, 2)}
 
-Return a JSON array of results.
-If an order has differences, include them like:
-[
-  { 
-    "order_number": "21-00000001",
-    "issue": true,
-    "differences": {
-      "order_status": {
-        "internal": "Cancelled",
-        "external": "Completed"
-      }
-    }
-  }
-]
-
-If an order has no differences, include:
-[
-  {
-    "order_number": "21-00000002",
-    "issue": false,
-    "message": "No issues"
-  }
-]
-`;
+Only output valid JSON (no prose). Ensure numeric fields are numbers, not strings.`;
 
   try {
     const response = await cohere.chat({
@@ -53,15 +66,10 @@ If an order has no differences, include:
     });
 
     const rawText = response.text;
-    // console.log("Raw Cohere Response:", rawText);
-
-    const parsed = extractJSON(rawText); // <-- safe extraction
-
+    const parsed = extractJSON(rawText);
     return parsed;
   } catch (err) {
     console.error("Cohere AI error:", err);
     throw err;
   }
-}
-
-module.exports = { compareOrdersAI };
+};

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon index.js"
@@ -13,6 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@prisma/client": "^6.16.3",
     "axios": "^1.11.0",
     "cohere-ai": "^7.19.0",
     "cors": "^2.8.5",
@@ -21,5 +22,8 @@
     "node-fetch": "^3.3.2",
     "nodemon": "^3.1.10",
     "openai": "^5.20.1"
+  },
+  "devDependencies": {
+    "prisma": "^6.16.3"
   }
 }

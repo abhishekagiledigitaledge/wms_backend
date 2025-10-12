@@ -4,10 +4,14 @@
   "description": "",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0 <19.0.0"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start":"node index.js",
-    "dev": "nodemon index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "gen:vapid": "node public/generateVapidKeys.js"
   },
   "keywords": [],
   "author": "",
@@ -18,13 +22,13 @@
     "axios": "^1.11.0",
     "cohere-ai": "^7.19.0",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.2",
-    "express": "^5.1.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "node-fetch": "^3.3.2",
-    "nodemon": "^3.1.10",
-    "openai": "^5.20.1"
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "nodemon": "^3.1.0",
     "prisma": "^6.16.3"
   }
 }

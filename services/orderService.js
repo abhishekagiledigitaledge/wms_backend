@@ -29,7 +29,7 @@ export const fetchAndSaveRexOrders = async (req, res) => {
     const limit = 100; // fetch 100 orders per page
     let allOrders = [];
 
-    while (allOrders.length < 500) {
+    while (allOrders.length < 100) {
       const response = await axios.get(
         `https://prdinfamsapi001.azure-api.net/v2.1/orders?page=${page}&limit=${limit}`,
         {
@@ -53,8 +53,8 @@ export const fetchAndSaveRexOrders = async (req, res) => {
         break;
       }
 
-      console.log(`Total records: ${totalRecords}`);
-      if (page * limit >= totalRecords) break; // fetched all pages
+      // console.log(`Total records: ${totalRecords}`);
+      // if (page * limit >= totalRecords) break; // fetched all pages
 
       page++;
     }

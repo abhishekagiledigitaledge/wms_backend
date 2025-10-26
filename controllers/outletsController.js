@@ -120,7 +120,7 @@ export const getProductsById = async (req, res) => {
         id: p.id,
         name: p.short_description || p.name,
         sell_price_inc: p.sell_price_inc,
-        inventory: p, // array of inventory entries for this outlet
+        inventory: p,
       };
     });
 
@@ -133,4 +133,3 @@ export const getProductsById = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch products for outlet" });
   }
 };
-

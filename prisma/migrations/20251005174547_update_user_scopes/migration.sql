@@ -1,3 +1,0 @@
--- AlterTable
-ALTER TABLE "users" ALTER COLUMN "scopes" SET DEFAULT ARRAY[]::TEXT[],
-ALTER COLUMN "scopes" SET DATA TYPE TEXT[];

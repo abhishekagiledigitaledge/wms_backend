@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import prisma from "../prismaClient.js";
 dotenv.config();
 
-const API_KEY = process.env.API_KEY; // .env variable
+const API_KEY = process.env.API_KEY;
 
 // GET /api/orders
 export const getOrders = async (req, res) => {
@@ -157,21 +157,14 @@ export const compareOrders = async (req, res) => {
   // If externalOrders not provided, use a static MYOB dataset for comparison
   const staticMYOB = [
     {
-      order_number: "14518",
-      paymentStatus: "paid",
-      fulfillmentStatus: "fulfilled",
-      total: 29.98,
-      customerEmail: "alice@example.com",
-      billingAddress: {
-        address1: "123 Main St",
-        city: "Sydney",
-        country: "Australia",
-        province: "NSW",
-        phone: "+61 2 9999 9999",
-      },
       line_data: [
-        { sku: "STICKER-01", title: "Sticker A", price: 9.99 },
-        { sku: "STICKER-02", title: "Sticker B", price: 19.99 },
+        // Example external format; keep as-is if you already get this from MYOB
+        {
+          sku: "CNMATPLDBBASICS",
+          title: "Basics Hybrid Plus Double Mattress",
+          price: "340.00",
+          quantity: 1,
+        },
       ],
     },
   ];

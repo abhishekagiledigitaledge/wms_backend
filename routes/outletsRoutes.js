@@ -11,5 +11,4 @@ const router = express.Router();
 router.get("/", getOutlets);
 router.get("/:outletId/inventory", getOutletsInventory);
 router.get("/:id/products", getProductsById);
-
 export default router;

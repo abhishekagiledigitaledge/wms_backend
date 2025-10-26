@@ -1,56 +1,51 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
 model Order {
   id                Int       @id @default(autoincrement())
-  externalId        String    @unique 
-  source            String    // "shopify" | "rex"
+  externalId        String    @unique
+  source            String
   orderNumber       String
-  customerName      String?   // customer.first_name + " " + customer.last_name
+  customerName      String?
   customerEmail     String?
   customerPhone     String?
-  customerAddress   String?   // optional, combined address
+  customerAddress   String?
   status            String
   paymentStatus     String?
   fulfillmentStatus String?
-  outlet            String?   // REX outlet or Shopify pickup location
+  outlet            String?
   subtotal          Float?
   tax               Float?
-  shippingFee       Float?    // freight_total / shipping_lines.price
+  shippingFee       Float?
   discount          Float?
-  totalAmount       Float     // order_total / total_price
+  totalAmount       Float
   currency          String
   createdAt         DateTime
   updatedAt         DateTime
   fulfilledAt       DateTime?
-  extraData         Json?     // store full raw API object including items
+  extraData         Json?
 
   @@map("orders")
 }
 
 model User {
-  id         Int      @id @default(autoincrement())
-  name       String
-  email      String   @unique
-  role       Role     @default(SALESPERSON)
-  is_active  Boolean  @default(true)
-  scopes     String[] @default([])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  role      Role     @default(SALESPERSON)
+  is_active Boolean  @default(true)
+  scopes    String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  password  String?
+
   @@map("users")
 }
 
@@ -58,4 +53,56 @@ enum Role {
   SUPER_ADMIN
   ADMIN
   SALESPERSON
+}
+
+model Store {
+  id            Int             @id @default(autoincrement())
+  name          String
+  address       String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  storeProducts StoreProduct[]
+
+  @@map("stores")
+
+}
+
+model Product {
+  id            Int             @id @default(autoincrement())
+  name          String
+  sku           String?         @unique
+  description   String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  storeProducts StoreProduct[]
+
+  @@map("products")
+
+}
+
+model StoreProduct {
+  id         Int      @id @default(autoincrement())
+  storeId    Int
+  productId  Int
+  price      Float
+  minQty     Int      @default(1)
+  maxQty     Int?
+  stock      Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  store      Store    @relation(fields: [storeId], references: [id])
+  product    Product  @relation(fields: [productId], references: [id])
+
+  @@map("storeProducts")
+
+  @@unique([storeId, productId]) // same product same store me duplicate entry prevent
+}
+
+model PushSubscription {
+  id           Int    @id @default(autoincrement())
+  storeId      Int
+  subscription Json
+  createdAt    DateTime @default(now())
 }

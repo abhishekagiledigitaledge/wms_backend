@@ -11,53 +11,58 @@ function extractJSON(text) {
   return JSON.parse(jsonMatch[0]);
 }
 
-export const compareOrdersAI = async (internalOrders, externalOrders) => {
+/**
+ * Compare ONLY line items.
+ * Expected inputs:
+ *   internalOrders: Array< { sku?: string, title?: string, price: number|string, quantity?: number|string } >
+ *   externalOrders: Array< same shape as above >
+ *
+ * Matching priority: sku -> title.
+ * Differences returned for: count, total, and per-item fields (title, price, quantity),
+ * plus missing items on either side.
+ */
+export const compareOrdersAI = async (internalLineItems, externalLineItems) => {
   const prompt = `
-You are a strict JSON-only assistant. Compare two sets of order data: INTERNAL (our system) and EXTERNAL (MYOB).
+You are a strict JSON-only assistant.
 
-Your goal: find and return ONLY the fields where the values are different between the two datasets.
+Task: Compare ONLY the line items between INTERNAL and EXTERNAL arrays. Do NOT consider any other fields.
 
-Ignore any order_number or ID fields — they are static and should NOT be used for matching. Just compare field-by-field values between the first internal and the first external record.
+Rules:
+- Match items by "sku" if present; if not, match by "title".
+- Treat "price" as number (coerce strings to numbers).
+- Default quantity to 1 if missing.
+- Compare:
+  - line_items.count (number of items)
+  - line_items.total (sum of price * quantity, number, 2dp)
+  - Per-item fields: title, price, quantity
+  - Missing/present differences (item exists on one side but not the other)
 
-Compare these exact columns:
-- paymentStatus
-- fulfillmentStatus
-- total (number)
-- customerEmail
-- billingAddress.address1
-- billingAddress.city
-- billingAddress.province
-- billingAddress.country
-- billingAddress.phone
-- line_data.count (number of line items)
-- line_data.total (sum of line item prices)
-
-Return ONLY a single JSON object in the following format:
+Output format (JSON ONLY):
 {
-  "issue": <true|false>,            // true if any field differs
-  "differences": {                  // include only fields that differ (omit identical fields)
-     "<field_path>": { "internal": <value>, "external": <value> },
-     ...
+  "issue": <true|false>,
+  "differences": {
+    // include ONLY differing fields
+    "line_items.count": { "internal": <number>, "external": <number> },
+    "line_items.total": { "internal": <number>, "external": <number> },
+    "items[<KEY>].missing": { "internal": <true|false>, "external": <true|false> },
+    "items[<KEY>].title": { "internal": <string|null>, "external": <string|null> },
+    "items[<KEY>].price": { "internal": <number>, "external": <number> },
+    "items[<KEY>].quantity": { "internal": <number>, "external": <number> }
   }
 }
 
-Field path examples: "paymentStatus", "billingAddress.city", "line_data.total"
+- <KEY> should be the best identifier available: prefer sku; if not, use title.
+- If there are NO differences at all, return:
+  { "issue": false, "message": "No differences in line items" }
 
-If there are NO differences at all, return:
-{
-  "issue": false,
-  "message": "No differences"
-}
+INTERNAL LINE ITEMS:
+${JSON.stringify(internalLineItems, null, 2)}
 
-Now compare field values between:
+EXTERNAL LINE ITEMS:
+${JSON.stringify(externalLineItems, null, 2)}
 
-INTERNAL ORDER DATA:
-${JSON.stringify(internalOrders, null, 2)}
-
-EXTERNAL (MYOB) ORDER DATA:
-${JSON.stringify(externalOrders, null, 2)}
-
-Only output valid JSON (no prose). Ensure numeric fields are numbers, not strings.`;
+Only output valid JSON (no prose). Ensure all numeric fields are numbers, not strings.
+  `.trim();
 
   try {
     const response = await cohere.chat({

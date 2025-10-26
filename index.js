@@ -13,7 +13,7 @@ import { fetchAndSaveProducts } from "./services/productService.js";
 import prisma from "./prismaClient.js";
 import webpush from "web-push";
 import cron from "node-cron";
-import './cronJob.js'; 
+import "./cronJob.js";
 
 dotenv.config();
 
@@ -86,8 +86,17 @@ app.get("/fetch-products", async (req, res) => {
 
 app.post("/api/save-subscription", async (req, res) => {
   const subscription = req.body;
-  console.log(subscription, "subscription");
-  // Save subscription in DB (store_id or user_id associated)
+  const existing = await prisma.pushSubscription.findFirst({
+    where: {
+      storeId: 1,
+      subscription: subscription,
+    },
+  });
+
+  if (existing) {
+    return res.status(200).json({ message: "Subscription already exists" });
+  }
+  
   await prisma.pushSubscription.create({
     data: {
       storeId: 1,
@@ -106,45 +115,49 @@ webpush.setVapidDetails(
 );
 
 // Cron job: runs every 1 minute
-cron.schedule("0 */5 * * *", async () => {
-  try {
-    const lowStockProducts = await prisma.$queryRaw`
+cron.schedule(
+  "0 */5 * * *",
+  async () => {
+    try {
+      const lowStockProducts = await prisma.$queryRaw`
       SELECT * FROM "storeProducts"
       WHERE "stock" < "minQty"
       AND "storeId" = 1
     `;
 
-    if (lowStockProducts.length > 0) {
-      for (const p of lowStockProducts) {
-        console.log(
-          `Store ${p.storeId} - Product ${p.productId} stock is low!`
-        );
+      if (lowStockProducts.length > 0) {
+        for (const p of lowStockProducts) {
+          console.log(
+            `Store ${p.storeId} - Product ${p.productId} stock is low!`
+          );
 
-        // ✅ Get subscriptions for that store
-        const subscriptions = await prisma.pushSubscription.findMany({
-          where: { storeId: p.storeId },
-        });
+          // ✅ Get subscriptions for that store
+          const subscriptions = await prisma.pushSubscription.findMany({
+            where: { storeId: p.storeId },
+          });
 
-        // ✅ Loop over store subscriptions
-        for (const sub of subscriptions) {
-          await webpush
-            .sendNotification(
-              sub.subscription,
-              JSON.stringify({
-                title: "Low Stock Alert",
-                body: `Product ${p.productId} at Store ${p.storeId} is below min quantity!`,
-              })
-            )
-            .catch((err) => console.error("Push error:", err));
+          // ✅ Loop over store subscriptions
+          for (const sub of subscriptions) {
+            await webpush
+              .sendNotification(
+                sub.subscription,
+                JSON.stringify({
+                  title: "Low Stock Alert",
+                  body: `Product ${p.productId} at Store ${p.storeId} is below min quantity!`,
+                })
+              )
+              .catch((err) => console.error("Push error:", err));
+          }
         }
       }
+    } catch (err) {
+      console.error("Error checking low stock:", err);
     }
-  } catch (err) {
-    console.error("Error checking low stock:", err);
+  },
+  {
+    timezone: "Asia/Kolkata",
   }
-}, {
-  timezone: "Asia/Kolkata"
-});
+);
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);

@@ -13,6 +13,7 @@ import { fetchAndSaveProducts } from "./services/productService.js";
 import prisma from "./prismaClient.js";
 import webpush from "web-push";
 import cron from "node-cron";
+import './cronJob.js'; 
 
 dotenv.config();
 

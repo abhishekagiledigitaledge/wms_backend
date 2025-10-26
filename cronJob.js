@@ -8,4 +8,6 @@ cron.schedule("0 2 * * *", async () => {
   console.log("Running store fetch cron job...");
   await fetchAndSaveStores();
   await fetchAndSaveProducts();
+}, {
+  timezone: "Asia/Kolkata"
 });

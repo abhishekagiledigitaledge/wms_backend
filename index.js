@@ -142,6 +142,8 @@ cron.schedule("0 */5 * * *", async () => {
   } catch (err) {
     console.error("Error checking low stock:", err);
   }
+}, {
+  timezone: "Asia/Kolkata"
 });
 
 app.listen(PORT, () => {

@@ -22,7 +22,6 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use("/webhooks", bodyParser.raw({ type: "*/*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -182,15 +181,20 @@ const pushSubscriptions = new Map(); // key: id (simple), value: subscription ob
 function verifyShopifyWebhook(req) {
   const hmacHeader = req.get("X-Shopify-Hmac-Sha256");
   if (!hmacHeader) return false;
-  const body = req.body; // Buffer (raw)
+
+  const body = req.body; // raw buffer from express.raw()
   const digest = crypto
     .createHmac("sha256", WEBHOOK_SECRET)
     .update(body)
     .digest("base64");
-  return crypto.timingSafeEqual(
-    Buffer.from(digest, "utf8"),
-    Buffer.from(hmacHeader, "utf8")
-  );
+
+  const generatedHmac = Buffer.from(digest, "base64");
+  const receivedHmac = Buffer.from(hmacHeader, "base64");
+
+  // Must be equal length or timingSafeEqual throws
+  if (generatedHmac.length !== receivedHmac.length) return false;
+
+  return crypto.timingSafeEqual(generatedHmac, receivedHmac);
 }
 
 // Endpoint to create the GraphQL webhook subscription (call once)
@@ -227,56 +231,62 @@ app.post("/create-webhook", async (req, res) => {
 });
 
 // Shopify will POST order creation webhooks here. Make sure the callback URL matches what you created.
-app.post("/webhooks/orders_create", (req, res) => {
-  try {
-    if (!verifyShopifyWebhook(req)) {
-      console.warn("Shopify webhook verification failed");
-      return res.status(401).send("HMAC verification failed");
-    }
+app.post(
+  "/webhooks/orders_create",
+  express.raw({ type: "application/json" }),
+  (req, res) => {
+    try {
+      if (!verifyShopifyWebhook(req)) {
+        console.warn("Shopify webhook verification failed");
+        return res.status(401).send("HMAC verification failed");
+      }
 
-    const bodyStr = req.body.toString("utf8");
-    const order = JSON.parse(bodyStr);
-    console.log(
-      "Received new order webhook, id:",
-      order.id || order.order_id || order?.id
-    );
-
-    // Create a payload for push
-    const title = `New order #${order.order_number || order.id || "unknown"}`;
-    const payload = JSON.stringify({
-      title,
-      body: `Customer: ${order?.customer?.first_name || ""} ${
-        order?.customer?.last_name || ""
-      } — Total: ${order?.total_price || order?.current_total_price || "N/A"}`,
-      url: `/orders/${order.id}`,
-    });
-
-    // Send push to all subscribers
-    const sendPromises = [];
-    for (const [id, sub] of pushSubscriptions.entries()) {
-      sendPromises.push(
-        webpush.sendNotification(sub, payload).catch((err) => {
-          console.error(
-            "Error sending push to subscriber",
-            id,
-            err && err.body ? err.body : err.message
-          );
-          // optionally remove invalid subscriptions based on err.statusCode
-        })
+      const bodyStr = req.body.toString("utf8");
+      const order = JSON.parse(bodyStr);
+      console.log(
+        "Received new order webhook, id:",
+        order.id || order.order_id || order?.id
       );
+
+      // Create a payload for push
+      const title = `New order #${order.order_number || order.id || "unknown"}`;
+      const payload = JSON.stringify({
+        title,
+        body: `Customer: ${order?.customer?.first_name || ""} ${
+          order?.customer?.last_name || ""
+        } — Total: ${
+          order?.total_price || order?.current_total_price || "N/A"
+        }`,
+        url: `/orders/${order.id}`,
+      });
+
+      // Send push to all subscribers
+      const sendPromises = [];
+      for (const [id, sub] of pushSubscriptions.entries()) {
+        sendPromises.push(
+          webpush.sendNotification(sub, payload).catch((err) => {
+            console.error(
+              "Error sending push to subscriber",
+              id,
+              err && err.body ? err.body : err.message
+            );
+            // optionally remove invalid subscriptions based on err.statusCode
+          })
+        );
+      }
+
+      Promise.all(sendPromises)
+        .then(() => console.log("Push notifications sent"))
+        .catch((err) => console.error("Error sending pushes", err));
+
+      // Respond 200 to Shopify quickly
+      res.status(200).send("OK");
+    } catch (err) {
+      console.error("Webhook handling error", err);
+      res.status(500).send("Server error");
     }
-
-    Promise.all(sendPromises)
-      .then(() => console.log("Push notifications sent"))
-      .catch((err) => console.error("Error sending pushes", err));
-
-    // Respond 200 to Shopify quickly
-    res.status(200).send("OK");
-  } catch (err) {
-    console.error("Webhook handling error", err);
-    res.status(500).send("Server error");
   }
-});
+);
 
 // ===========================================
 

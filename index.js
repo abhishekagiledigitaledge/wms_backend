@@ -15,8 +15,7 @@ import webpush from "web-push";
 import cron from "node-cron";
 import "./cronJob.js";
 import bodyParser from "body-parser";
-import crypto from 'crypto';
-
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -183,15 +182,19 @@ const pushSubscriptions = new Map(); // key: id (simple), value: subscription ob
 function verifyShopifyWebhook(req) {
   const hmacHeader = req.get("X-Shopify-Hmac-Sha256");
   if (!hmacHeader) return false;
-  const body = req.body; // Buffer (raw)
+
+  const body = req.rawBody || req.body; // Must be raw buffer, not parsed JSON
   const digest = crypto
     .createHmac("sha256", WEBHOOK_SECRET)
     .update(body)
     .digest("base64");
-  return crypto.timingSafeEqual(
-    Buffer.from(digest, "utf8"),
-    Buffer.from(hmacHeader, "utf8")
-  );
+
+  const generatedHmac = Buffer.from(digest, "base64");
+  const receivedHmac = Buffer.from(hmacHeader, "base64");
+
+  if (generatedHmac.length !== receivedHmac.length) return false;
+
+  return crypto.timingSafeEqual(generatedHmac, receivedHmac);
 }
 
 // Endpoint to create the GraphQL webhook subscription (call once)

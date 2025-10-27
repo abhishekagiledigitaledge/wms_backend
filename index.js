@@ -22,7 +22,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(express.raw({ type: "application/json" }));
+app.use("/webhooks", bodyParser.raw({ type: "*/*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -182,19 +182,15 @@ const pushSubscriptions = new Map(); // key: id (simple), value: subscription ob
 function verifyShopifyWebhook(req) {
   const hmacHeader = req.get("X-Shopify-Hmac-Sha256");
   if (!hmacHeader) return false;
-
-  const body = req.rawBody || req.body; // Must be raw buffer, not parsed JSON
+  const body = req.body; // Buffer (raw)
   const digest = crypto
     .createHmac("sha256", WEBHOOK_SECRET)
     .update(body)
     .digest("base64");
-
-  const generatedHmac = Buffer.from(digest, "base64");
-  const receivedHmac = Buffer.from(hmacHeader, "base64");
-
-  if (generatedHmac.length !== receivedHmac.length) return false;
-
-  return crypto.timingSafeEqual(generatedHmac, receivedHmac);
+  return crypto.timingSafeEqual(
+    Buffer.from(digest, "utf8"),
+    Buffer.from(hmacHeader, "utf8")
+  );
 }
 
 // Endpoint to create the GraphQL webhook subscription (call once)

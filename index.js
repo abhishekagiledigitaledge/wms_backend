@@ -64,7 +64,7 @@ app.post("/webhooks/orders/create", async (req, res) => {
     // ✅ Get subscriptions for that store
     const subscriptions = await prisma.pushSubscription.findMany();
 
-    console.log("🆕 New Order Received:", orderData.name);
+    console.log("🆕 New Order Received:", orderData);
 
     for (const sub of subscriptions) {
       try {

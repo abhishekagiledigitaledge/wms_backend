@@ -39,7 +39,7 @@ app.post("/webhooks/orders/create", async (req, res) => {
       .createHmac("sha256", process.env.SHOPIFY_WEBHOOK_SECRET)
       .update(body, "utf8")
       .digest("base64");
-    let orderData;
+    // let orderData;
 
     if (generatedHash !== hmacHeader) {
       console.log("⚠️ Verification failed");
@@ -94,8 +94,8 @@ app.post("/webhooks/orders/create", async (req, res) => {
       //     line_item_groups: [],
       //   };
       // } else {
-    }
-    orderData = JSON.parse(body.toString("utf8"));
+      }
+      const orderData = JSON.parse(body.toString("utf8"));
 
     // ✅ Get subscriptions for that store
     const subscriptions = await prisma.pushSubscription.findMany();
@@ -107,7 +107,7 @@ app.post("/webhooks/orders/create", async (req, res) => {
         await webpush.sendNotification(
           sub.subscription,
           JSON.stringify({
-            title: `New Shopify Order – ${
+            title: `New ${orderData?.shipping_lines?.[0]?.source || "shopify"} Order – ${
               orderData?.shipping_lines?.[0]?.id || "N/A"
             }`,
             body: `${

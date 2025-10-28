@@ -46,6 +46,9 @@ app.post("/webhooks/orders/create", async (req, res) => {
       console.log("Expected:", generatedHash);
       console.log("Received:", hmacHeader);
       console.log("🧪 Using static test data instead...");
+      return res
+        .status(401)
+        .json({ success: false, message: "Webhook verification failed" });
 
       // 🧩 Static test order data
       //   orderData = {
@@ -94,8 +97,8 @@ app.post("/webhooks/orders/create", async (req, res) => {
       //     line_item_groups: [],
       //   };
       // } else {
-      }
-      const orderData = JSON.parse(body.toString("utf8"));
+    }
+    const orderData = JSON.parse(body.toString("utf8"));
 
     // ✅ Get subscriptions for that store
     const subscriptions = await prisma.pushSubscription.findMany();
@@ -107,9 +110,9 @@ app.post("/webhooks/orders/create", async (req, res) => {
         await webpush.sendNotification(
           sub.subscription,
           JSON.stringify({
-            title: `New ${orderData?.shipping_lines?.[0]?.source || "shopify"} Order – ${
-              orderData?.shipping_lines?.[0]?.id || "N/A"
-            }`,
+            title: `New ${
+              orderData?.shipping_lines?.[0]?.source || "shopify"
+            } Order – ${orderData?.shipping_lines?.[0]?.id || "N/A"}`,
             body: `${
               orderData?.shipping_lines?.[0]?.title || ""
             }\nA new order has been placed in your store.`,

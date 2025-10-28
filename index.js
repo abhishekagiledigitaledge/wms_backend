@@ -39,7 +39,7 @@ app.post("/webhooks/orders/create", async (req, res) => {
       .createHmac("sha256", process.env.SHOPIFY_WEBHOOK_SECRET)
       .update(body, "utf8")
       .digest("base64");
-    // let orderData;
+    let orderData;
 
     if (generatedHash !== hmacHeader) {
       console.log("⚠️ Verification failed");
@@ -48,55 +48,54 @@ app.post("/webhooks/orders/create", async (req, res) => {
       console.log("🧪 Using static test data instead...");
 
       // 🧩 Static test order data
-      // orderData = {
-      //   currency: "AUD",
-      //   tax_exemptions: [],
-      //   admin_graphql_api_id: "gid://shopify/Customer/8825706184901",
-      //   default_address: {
-      //     id: 9877220098245,
-      //     customer_id: 8825706184901,
-      //     first_name: "Andrew",
-      //     last_name: "Suringa",
-      //     address1: "5-9 somerset street",
-      //     address2: "Unit 9",
-      //     city: "Byron Bay",
-      //     province: "New South Wales",
-      //     country: "Australia",
-      //     zip: "2481",
-      //     phone: "0434404899",
-      //     name: "Andrew Suringa",
-      //     province_code: "NSW",
-      //     country_code: "AU",
-      //     country_name: "Australia",
-      //     default: true,
-      //   },
-      //   line_items: [
-      //     {
-      //       id: 14788242079941,
-      //       name: "Arden Bamboo Wood Bed Frame Natural Queen",
-      //       price: "314.00",
-      //       product_id: 7946213195973,
-      //       quantity: 1,
-      //       sku: "AU-FPWNH2-08Q",
-      //       vendor: "Zinus",
+      //   orderData = {
+      //     currency: "AUD",
+      //     tax_exemptions: [],
+      //     admin_graphql_api_id: "gid://shopify/Customer/8825706184901",
+      //     default_address: {
+      //       id: 9877220098245,
+      //       customer_id: 8825706184901,
+      //       first_name: "Andrew",
+      //       last_name: "Suringa",
+      //       address1: "5-9 somerset street",
+      //       address2: "Unit 9",
+      //       city: "Byron Bay",
+      //       province: "New South Wales",
+      //       country: "Australia",
+      //       zip: "2481",
+      //       phone: "0434404899",
+      //       name: "Andrew Suringa",
+      //       province_code: "NSW",
+      //       country_code: "AU",
+      //       country_name: "Australia",
+      //       default: true,
       //     },
-      //   ],
-      //   shipping_lines: [
-      //     {
-      //       id: 5103622979781,
-      //       code: "Delivery Included",
-      //       title: "Delivery Included",
-      //       price: "0.00",
-      //       source: "shopify",
-      //     },
-      //   ],
-      //   returns: [],
-      //   line_item_groups: [],
-      // };
+      //     line_items: [
+      //       {
+      //         id: 14788242079941,
+      //         name: "Arden Bamboo Wood Bed Frame Natural Queen",
+      //         price: "314.00",
+      //         product_id: 7946213195973,
+      //         quantity: 1,
+      //         sku: "AU-FPWNH2-08Q",
+      //         vendor: "Zinus",
+      //       },
+      //     ],
+      //     shipping_lines: [
+      //       {
+      //         id: 5103622979781,
+      //         code: "Delivery Included",
+      //         title: "Delivery Included",
+      //         price: "0.00",
+      //         source: "shopify",
+      //       },
+      //     ],
+      //     returns: [],
+      //     line_item_groups: [],
+      //   };
       // } else {
     }
-
-    let orderData = JSON.parse(body.toString("utf8"));
+    orderData = JSON.parse(body.toString("utf8"));
 
     // ✅ Get subscriptions for that store
     const subscriptions = await prisma.pushSubscription.findMany();
@@ -108,11 +107,12 @@ app.post("/webhooks/orders/create", async (req, res) => {
         await webpush.sendNotification(
           sub.subscription,
           JSON.stringify({
-            title: `New Order - ${
-              orderData?.shipping_lines?.[0]?.title || "Order"
+            title: `New Shopify Order – ${
+              orderData?.shipping_lines?.[0]?.id || "N/A"
             }`,
-            body: `A new order has been placed in your store.`,
-            source: orderData?.shipping_lines?.[0]?.source || "N/A",
+            body: `${
+              orderData?.shipping_lines?.[0]?.title || ""
+            }\nA new order has been placed in your store.`,
           })
         );
       } catch (err) {

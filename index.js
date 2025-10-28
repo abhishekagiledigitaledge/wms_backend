@@ -21,134 +21,61 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// ===========================================
-const SHOP = process.env.SHOPIFY_SHOP; // e.g. my-shop.myshopify.com
-const ADMIN_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN; // X-Shopify-Access-Token
-const API_VERSION = process.env.SHOPIFY_API_VERSION || "2024-10";
-const WEBHOOK_CALLBACK_URL = process.env.SHOPIFY_WEBHOOK_CALLBACK_URL; // public URL for webhook
-const WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET; // for HMAC verification
+// Set up web-push
+webpush.setVapidDetails(
+  "mailto:test@example.com",
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
 
-if (!SHOP || !ADMIN_TOKEN || !WEBHOOK_CALLBACK_URL || !WEBHOOK_SECRET) {
-  console.warn(
-    "Warning: Please set SHOPIFY_SHOP, SHOPIFY_ADMIN_TOKEN, SHOPIFY_WEBHOOK_CALLBACK_URL and SHOPIFY_WEBHOOK_SECRET in your environment"
-  );
-}
+// Shopify raw body chahiye verify ke liye
+app.use("/webhooks/orders/create", express.raw({ type: "application/json" }));
 
-// In-memory store for push subscriptions (replace with DB in production)
-const pushSubscriptions = new Map(); // key: id (simple), value: subscription object
-
-// Utility: verify Shopify webhook HMAC (sha256)
-function verifyShopifyWebhook(req) {
-  const hmacHeader = req.get("X-Shopify-Hmac-Sha256");
-  if (!hmacHeader) return false;
-
-  // req.body is now a Buffer
-  const digest = crypto
-    .createHmac("sha256", WEBHOOK_SECRET)
-    .update(req.body)
-    .digest("base64");
-
-  const generatedHmac = Buffer.from(digest, "base64");
-  const receivedHmac = Buffer.from(hmacHeader, "base64");
-
-  if (generatedHmac.length !== receivedHmac.length) return false;
-
-  return crypto.timingSafeEqual(generatedHmac, receivedHmac);
-}
-
-// Endpoint to create the GraphQL webhook subscription (call once)
-app.post("/create-webhook", async (req, res) => {
+app.post("/webhooks/orders/create", async (req, res) => {
   try {
-    const graphqlEndpoint = `https://${SHOP}/admin/api/${API_VERSION}/graphql.json`;
-    const mutation = `
-      mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $callbackUrl: URL!) {
-        webhookSubscriptionCreate(topic: $topic, webhookSubscription: { callbackUrl: $callbackUrl, includeFields: ["id", "name", "email"], format: JSON }) {
-          userErrors { field message }
-          webhookSubscription { id }
-        }
-      }
-    `;
-    const variables = {
-      topic: "ORDERS_CREATE",
-      callbackUrl: WEBHOOK_CALLBACK_URL,
-    };
+    const hmacHeader = req.get("X-Shopify-Hmac-Sha256");
+    const body = req.body;
+    const generatedHash = crypto
+      .createHmac("sha256", process.env.SHOPIFY_WEBHOOK_SECRET)
+      .update(body, "utf8")
+      .digest("base64");
 
-    const r = await fetch(graphqlEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": ADMIN_TOKEN,
-      },
-      body: JSON.stringify({ query: mutation, variables }),
-    });
-    const data = await r.json();
-    return res.json(data);
-  } catch (err) {
-    console.error("create-webhook error", err);
-    return res.status(500).json({ error: err.message });
-  }
-});
+    if (generatedHash !== hmacHeader) {
+      console.log("⚠️ Verification failed");
+      console.log("Expected:", generatedHash);
+      console.log("Received:", hmacHeader);
+      return res.status(401).send("Verification failed");
+    }
 
-// Shopify will POST order creation webhooks here. Make sure the callback URL matches what you created.
-app.post(
-  "/webhooks/orders_create",
-  express.raw({ type: "application/json" }),
-  (req, res) => {
-    try {
-      console.log("➡️ Webhook hit");
-      console.log("req.body type:", typeof req.body, req.body.constructor.name);
-      
-      if (!verifyShopifyWebhook(req)) {
-        console.warn("Shopify webhook verification failed");
-        return res.status(401).send("HMAC verification failed");
-      }
+    // ✅ Get subscriptions for that store
+    const subscriptions = await prisma.pushSubscription.findMany();
 
-      const bodyStr = req.body.toString("utf8");
-      const order = JSON.parse(bodyStr);
-      console.log(
-        "Received new order webhook, id:",
-        order.id || order.order_id || order?.id
-      );
+    const orderData = JSON.parse(body.toString("utf8"));
+    console.log("🆕 New Order Received:", orderData.name);
 
-      // Create a payload for push
-      const title = `New order #${order.order_number || order.id || "unknown"}`;
-      const payload = JSON.stringify({
-        title,
-        body: `Customer: ${order?.customer?.first_name || ""} ${
-          order?.customer?.last_name || ""
-        } — Total: ${
-          order?.total_price || order?.current_total_price || "N/A"
-        }`,
-        url: `/orders/${order.id}`,
-      });
-
-      // Send push to all subscribers
-      const sendPromises = [];
-      for (const [id, sub] of pushSubscriptions.entries()) {
-        sendPromises.push(
-          webpush.sendNotification(sub, payload).catch((err) => {
-            console.error(
-              "Error sending push to subscriber",
-              id,
-              err && err.body ? err.body : err.message
-            );
-            // optionally remove invalid subscriptions based on err.statusCode
+    for (const sub of subscriptions) {
+      try {
+        await webpush.sendNotification(
+          sub.subscription,
+          JSON.stringify({
+            title: "🛍️ New Shopify Order!",
+            body: `A new order has been placed in your store.`,
+            data: {
+              url: "http://zcwscgs04ksksc8c44sk48c0.62.72.57.193.sslip.io/orders",
+            }, // optional: redirect URL
           })
         );
+      } catch (err) {
+        console.error("Push error:", err);
       }
-
-      Promise.all(sendPromises)
-        .then(() => console.log("Push notifications sent"))
-        .catch((err) => console.error("Error sending pushes", err));
-
-      // Respond 200 to Shopify quickly
-      res.status(200).send("OK");
-    } catch (err) {
-      console.error("Webhook handling error", err);
-      res.status(500).send("Server error");
     }
+
+    res.status(200).send("ok");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error");
   }
-);
+});
 
 // ===========================================
 
@@ -238,13 +165,6 @@ app.post("/api/save-subscription", async (req, res) => {
   res.status(201).json({ message: "Subscription saved" });
 });
 
-// Set up web-push
-webpush.setVapidDetails(
-  "mailto:test@example.com",
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
-
 // Cron job: runs every 5 hr
 cron.schedule(
   "0 */5 * * *",
@@ -290,7 +210,6 @@ cron.schedule(
   }
 );
 // ======================================
-
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
